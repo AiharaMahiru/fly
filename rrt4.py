@@ -4,55 +4,37 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import random
 from mpl_toolkits.mplot3d import Axes3D
 from sklearn.neighbors import KDTree
-import heapq
+import networkx as nx
 
-def euclidean_distance(point1, point2):
-    return np.linalg.norm(point1 - point2)
+def create_local_ground_grid(path, grid_size, clearance, obstacles):
+    local_grid = []
+    for point in path:
+        x_min = max(0, int(point[0]) - clearance)
+        x_max = min(x_lim, int(point[0]) + clearance)
+        y_min = max(0, int(point[1]) - clearance)
+        y_max = min(y_lim, int(point[1]) + clearance)
+        for x in range(x_min, x_max, grid_size):
+            for y in range(y_min, y_max, grid_size):
+                cell = (x + grid_size // 2, y + grid_size // 2)
+                if not is_obstructed(cell, obstacles, grid_size):
+                    local_grid.append(np.array([cell[0], cell[1], point[2]]))
+    return np.array(local_grid)
 
-def get_neighbors(point, obstacles, clearance, grid_size):
-    neighbors = []
-    directions = [
-        np.array([0, grid_size]),
-        np.array([grid_size, 0]),
-        np.array([0, -grid_size]),
-        np.array([-grid_size, 0]),
-    ]
+def build_graph(nodes, obstacles, max_distance):
+    G = nx.Graph()
+    tree = KDTree(nodes)
+    
+    for node in nodes:
+        indices = tree.query_radius(node.reshape(1, -1), r=max_distance)[0]
+        for i in indices:
+            distance = np.linalg.norm(node - nodes[i])
+            if not point_in_obstacle((node + nodes[i]) / 2, obstacles):
+                G.add_edge(tuple(node), tuple(nodes[i]), weight=distance)
+    return G
 
-    for direction in directions:
-        new_point = point + direction
-        if is_valid_point(new_point, obstacles, clearance):
-            neighbors.append(new_point)
+def find_shortest_path(graph, start, goal):
+    return nx.dijkstra_path(graph, tuple(start), tuple(goal))
 
-    return neighbors
-
-def is_valid_point(point, obstacles, clearance):
-    for obs in obstacles:
-        if euclidean_distance(point[:2], obs[:2]) <= obs[2] + clearance:
-            return False
-    return True
-
-def a_star(start, goal, obstacles, clearance=1, grid_size=1):
-    start_2d, goal_2d = start[:2], goal[:2]
-    open_set = [(euclidean_distance(start_2d, goal_2d), 0, start_2d, [])]
-    closed_set = set()
-
-    while open_set:
-        _, cost, current, path = heapq.heappop(open_set)
-        if tuple(current) in closed_set:
-            continue
-        path = path + [current]
-
-        if np.array_equal(current, goal_2d):
-            return np.array([(x, y, start[2]) for x, y in path])
-
-        closed_set.add(tuple(current))
-
-        for neighbor in get_neighbors(current, obstacles, clearance, grid_size):
-            if tuple(neighbor) not in closed_set:
-                total_cost = cost + euclidean_distance(current, neighbor) + euclidean_distance(neighbor, goal_2d)
-                heapq.heappush(open_set, (total_cost, cost + 1, neighbor, path))
-
-    return None
 
 def create_box(x, y, z, dx, dy, dz):
     """Create a box with one corner at the given coordinates and with the given dimensions."""
@@ -111,6 +93,77 @@ def generate_random_point(x_max, y_max, z_min, z_max):
             random.uniform(z_min, z_max),
         ]
     )
+
+# RRT algorithm
+def rrt(start, goal, obstacles, num_iterations=500, max_distance=50, min_clearance=30):
+    x_max, y_max = 1000, 1000
+    z_min, z_max = 100, 400
+
+    start_node = TreeNode(start)
+    goal_node = TreeNode(goal)
+
+    tree_nodes = [start_node]
+    tree_kdtree = KDTree(start.reshape(1, -1))
+
+    for _ in range(num_iterations):
+        random_point = generate_random_point(x_max, y_max, z_min, z_max)
+
+        if point_in_obstacle(random_point, obstacles):
+            continue
+
+        nearest_index = tree_kdtree.query(
+            random_point.reshape(1, -1), return_distance=False
+        )[0][0]
+        nearest_node = tree_nodes[nearest_index]
+
+        new_point = (
+            nearest_node.point
+            + (random_point - nearest_node.point)
+            / np.linalg.norm(random_point - nearest_node.point)
+            * max_distance
+        )
+
+        if point_in_obstacle(new_point, obstacles):
+            continue
+
+        too_close_to_obstacle = False
+        for obstacle in obstacles:
+            obs_center = np.array(
+                [
+                    obstacle[0][0] + obstacle[1][0] / 2,
+                    obstacle[0][1] + obstacle[1][1] / 2,
+                    obstacle[0][2] + obstacle[1][2] / 2,
+                ]
+            )
+            if (
+                np.linalg.norm(new_point - obs_center)
+                <= min_clearance
+            ):
+                too_close_to_obstacle = True
+                break
+
+        if too_close_to_obstacle:
+            continue
+
+        new_node = TreeNode(new_point, parent=nearest_node)
+        tree_nodes.append(new_node)
+        tree_kdtree = KDTree(np.vstack([tree_kdtree.data, new_point.reshape(1, -1)]))
+
+        if np.linalg.norm(new_point - goal) <= max_distance:
+            goal_node.parent = new_node
+            break
+
+    path = []
+    current_node = goal_node
+
+    while current_node.parent is not None:
+        path.append(current_node.point)
+        current_node = current_node.parent
+
+    path.append(start)
+    path.reverse()
+
+    return path
 
 def gradient_descent_path_smooth(
     path, obstacles_info, alpha=0.01, beta=0.08, max_iterations=15, tolerance=1e-5
@@ -327,6 +380,7 @@ def creat_ob(ax, num_obstacles, x_lim, y_lim, min_distance, start, goal):
 fig = plt.figure()
 ax = fig.add_subplot(111, projection="3d")
 
+
 num_obstacles = 25
 x_lim, y_lim = 950, 950
 min_distance = 150
@@ -336,10 +390,19 @@ goal = np.array([900, 900, 300])
 
 obstacles_info = creat_ob(ax, num_obstacles, x_lim, y_lim, min_distance, start, goal)
 
-# Create ground grid
-ground_grid = create_ground_grid(1000, 1000, 50, obstacles_info)
 
-clearance = 10
-grid_size = 10
-path = a_star(start[:2], goal[:2], obstacles_info, clearance, grid_size)
-show_env(start, goal, obstacles_info, path)
+# Run RRT algorithm
+rrt_path = rrt(start, goal, obstacles_info)
+
+# Create local ground grid around the RRT path
+local_grid = create_local_ground_grid(rrt_path, grid_size=20, clearance=150, obstacles=obstacles_info)
+
+# Add the start and goal nodes to the local grid
+local_grid = np.vstack([local_grid, start, goal])
+
+# Build the graph and find the shortest path using Dijkstra's algorithm
+graph = build_graph(local_grid, obstacles_info, max_distance=100)
+shortest_path = find_shortest_path(graph, start, goal)
+
+# Visualize the result
+show_env(start, goal, obstacles_info, shortest_path)

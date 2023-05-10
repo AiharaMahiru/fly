@@ -4,7 +4,6 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import random
 from mpl_toolkits.mplot3d import Axes3D
 from sklearn.neighbors import KDTree
-import time
 
 # Function to create a 3D box
 def create_box(x, y, z, dx, dy, dz):
