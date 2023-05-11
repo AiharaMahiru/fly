@@ -2,8 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import random
-from mpl_toolkits.mplot3d import Axes3D
-from sklearn.neighbors import KDTree
 
 # Function to create a 3D box
 def create_box(x, y, z, dx, dy, dz):
@@ -64,77 +62,6 @@ def generate_random_point(x_max, y_max, z_min, z_max):
             random.uniform(z_min, z_max),
         ]
     )
-
-# RRT algorithm
-def rrt(start, goal, obstacles, num_iterations=500, max_distance=50, min_clearance=30):
-    x_max, y_max = 1000, 1000
-    z_min, z_max = 100, 400
-
-    start_node = TreeNode(start)
-    goal_node = TreeNode(goal)
-
-    tree_nodes = [start_node]
-    tree_kdtree = KDTree(start.reshape(1, -1))
-
-    for _ in range(num_iterations):
-        random_point = generate_random_point(x_max, y_max, z_min, z_max)
-
-        if point_in_obstacle(random_point, obstacles):
-            continue
-
-        nearest_index = tree_kdtree.query(
-            random_point.reshape(1, -1), return_distance=False
-        )[0][0]
-        nearest_node = tree_nodes[nearest_index]
-
-        new_point = (
-            nearest_node.point
-            + (random_point - nearest_node.point)
-            / np.linalg.norm(random_point - nearest_node.point)
-            * max_distance
-        )
-
-        if point_in_obstacle(new_point, obstacles):
-            continue
-
-        too_close_to_obstacle = False
-        for obstacle in obstacles:
-            obs_center = np.array(
-                [
-                    obstacle[0][0] + obstacle[1][0] / 2,
-                    obstacle[0][1] + obstacle[1][1] / 2,
-                    obstacle[0][2] + obstacle[1][2] / 2,
-                ]
-            )
-            if (
-                np.linalg.norm(new_point - obs_center)
-                <= min_clearance
-            ):
-                too_close_to_obstacle = True
-                break
-
-        if too_close_to_obstacle:
-            continue
-
-        new_node = TreeNode(new_point, parent=nearest_node)
-        tree_nodes.append(new_node)
-        tree_kdtree = KDTree(np.vstack([tree_kdtree.data, new_point.reshape(1, -1)]))
-
-        if np.linalg.norm(new_point - goal) <= max_distance:
-            goal_node.parent = new_node
-            break
-
-    path = []
-    current_node = goal_node
-
-    while current_node.parent is not None:
-        path.append(current_node.point)
-        current_node = current_node.parent
-
-    path.append(start)
-    path.reverse()
-
-    return path
 
 # Check if a grid cell is obstructed by an obstacle
 def is_obstructed(cell, obstacles, grid_size):
@@ -287,6 +214,30 @@ def generate_obstacles(num_obstacles, x_lim, y_lim, min_distance, start, goal):
 
     return obstacles_info
 
+def create_obstacles(ax, num_obstacles, x_lim, y_lim, min_distance, start, goal):
+    obstacles_info = generate_obstacles(
+    num_obstacles, x_lim, y_lim, min_distance, start, goal
+)
+
+
+    for obstacle_info in obstacles_info:
+        obstacle = create_box(*obstacle_info[0], *obstacle_info[1])
+        face_colors = np.random.rand(3)
+        ax.add_collection3d(
+        Poly3DCollection(
+            obstacle, facecolors=face_colors, linewidths=1, edgecolors="k", alpha=0.7
+        )
+    )
+
+    for obstacle in obstacles_info:
+        box = Poly3DCollection(
+        create_box(*obstacle[0], *obstacle[1]), alpha=0.3, linewidths=1, edgecolors="k"
+    )
+        box.set_facecolor("gray")
+        ax.add_collection3d(box)
+    return obstacles_info
+
+
 def show_env(start, goal, obstacles_info, path):
     path = np.array(path + [goal])
     start_height = start[2]
@@ -368,47 +319,26 @@ def show_env(start, goal, obstacles_info, path):
 # Show the plots
     plt.show()
 
-def creat_ob(ax, num_obstacles, x_lim, y_lim, min_distance, start, goal):
-    obstacles_info = generate_obstacles(
-    num_obstacles, x_lim, y_lim, min_distance, start, goal
-)
 
 
-    for obstacle_info in obstacles_info:
-        obstacle = create_box(*obstacle_info[0], *obstacle_info[1])
-        face_colors = np.random.rand(3)
-        ax.add_collection3d(
-        Poly3DCollection(
-            obstacle, facecolors=face_colors, linewidths=1, edgecolors="k", alpha=0.7
-        )
-    )
-
-    for obstacle in obstacles_info:
-        box = Poly3DCollection(
-        create_box(*obstacle[0], *obstacle[1]), alpha=0.3, linewidths=1, edgecolors="k"
-    )
-        box.set_facecolor("gray")
-        ax.add_collection3d(box)
-    return obstacles_info
 
 # Scene setup
 fig = plt.figure()
 ax = fig.add_subplot(111, projection="3d")
 
-num_obstacles = 25
+num_obstacles = 15
 x_lim, y_lim = 950, 950
-min_distance = 150
+min_distance = 200
 
 start = np.array([50, 50, 100])
 goal = np.array([900, 900, 300])
 
-obstacles_info = creat_ob(ax, num_obstacles, x_lim, y_lim, min_distance, start, goal)
+obstacles_info = create_obstacles(ax, num_obstacles, x_lim, y_lim, min_distance, start, goal)
 
 # Create ground grid
-ground_grid = create_ground_grid(1000, 1000, 50, obstacles_info)
+ground_grid = create_ground_grid(1000, 1000, 80, obstacles_info)
 
 # Greedy traversal
 path = greedy_traversal(start, goal, ground_grid)
-# path = rrt(start, goal, obstacles_info)
 
 show_env(start, goal, obstacles_info, path)

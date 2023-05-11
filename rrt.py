@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import random
-from mpl_toolkits.mplot3d import Axes3D
+# from mpl_toolkits.mplot3d import Axes3D
 from sklearn.neighbors import KDTree
 
 
@@ -132,46 +132,6 @@ def rrt(start, goal, obstacles, num_iterations=500, max_distance=50, min_clearan
 
     path.append(start)
     path.reverse()
-
-    return path
-
-def greedy_traversal(start, goal, ground_grid):
-    unvisited = set(range(len(ground_grid)))
-    path = [start]
-    current_index = None
-
-    # Find the closest start cell
-    min_distance = float("inf")
-    for i, cell in enumerate(ground_grid):
-        distance = np.linalg.norm(start[:2] - np.array([*cell]))
-        if distance < min_distance:
-            min_distance = distance
-            current_index = i
-
-    unvisited.remove(current_index)
-    start_z = start[2]
-    goal_z = goal[2]
-
-    # Compute the next point's z value based on the relative distance from the start to the goal
-    next_z = start_z + (1 - (min_distance / np.linalg.norm(goal[:2] - start[:2]))) * (goal_z - start_z)
-    path.append(np.array([*ground_grid[current_index], next_z]))
-
-    while unvisited:
-        min_distance = float("inf")
-        next_index = None
-
-        for i in unvisited:
-            distance = np.linalg.norm(path[-1][:2] - np.array([*ground_grid[i]]))
-            if distance < min_distance:
-                min_distance = distance
-                next_index = i
-
-        unvisited.remove(next_index)
-        current_index = next_index
-
-        # Compute the next point's z value based on the relative distance from the start to the goal
-        next_z = start_z + (1 - (min_distance / np.linalg.norm(goal[:2] - start[:2]))) * (goal_z - start_z)
-        path.append(np.array([*ground_grid[current_index], next_z]))
 
     return path
 

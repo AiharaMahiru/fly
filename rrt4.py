@@ -166,7 +166,7 @@ def rrt(start, goal, obstacles, num_iterations=500, max_distance=50, min_clearan
     return path
 
 def gradient_descent_path_smooth(
-    path, obstacles_info, alpha=0.01, beta=0.08, max_iterations=15, tolerance=1e-5
+    path, obstacles_info, alpha=0.01, beta=0.1, max_iterations=3, tolerance=1e-5
 ):
     path = path.astype(np.float64)
 
@@ -381,7 +381,7 @@ fig = plt.figure()
 ax = fig.add_subplot(111, projection="3d")
 
 
-num_obstacles = 25
+num_obstacles = 15
 x_lim, y_lim = 950, 950
 min_distance = 150
 
@@ -395,7 +395,7 @@ obstacles_info = creat_ob(ax, num_obstacles, x_lim, y_lim, min_distance, start, 
 rrt_path = rrt(start, goal, obstacles_info)
 
 # Create local ground grid around the RRT path
-local_grid = create_local_ground_grid(rrt_path, grid_size=20, clearance=150, obstacles=obstacles_info)
+local_grid = create_local_ground_grid(rrt_path, grid_size=10, clearance=100, obstacles=obstacles_info)
 
 # Add the start and goal nodes to the local grid
 local_grid = np.vstack([local_grid, start, goal])
