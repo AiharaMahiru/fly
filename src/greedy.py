@@ -2,40 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import random
-from mpl_toolkits.mplot3d import Axes3D
-from sklearn.neighbors import KDTree
-import networkx as nx
 
-def create_local_ground_grid(path, grid_size, clearance, obstacles):
-    local_grid = []
-    for point in path:
-        x_min = max(0, int(point[0]) - clearance)
-        x_max = min(x_lim, int(point[0]) + clearance)
-        y_min = max(0, int(point[1]) - clearance)
-        y_max = min(y_lim, int(point[1]) + clearance)
-        for x in range(x_min, x_max, grid_size):
-            for y in range(y_min, y_max, grid_size):
-                cell = (x + grid_size // 2, y + grid_size // 2)
-                if not is_obstructed(cell, obstacles, grid_size):
-                    local_grid.append(np.array([cell[0], cell[1], point[2]]))
-    return np.array(local_grid)
-
-def build_graph(nodes, obstacles, max_distance):
-    G = nx.Graph()
-    tree = KDTree(nodes)
-    
-    for node in nodes:
-        indices = tree.query_radius(node.reshape(1, -1), r=max_distance)[0]
-        for i in indices:
-            distance = np.linalg.norm(node - nodes[i])
-            if not point_in_obstacle((node + nodes[i]) / 2, obstacles):
-                G.add_edge(tuple(node), tuple(nodes[i]), weight=distance)
-    return G
-
-def find_shortest_path(graph, start, goal):
-    return nx.dijkstra_path(graph, tuple(start), tuple(goal))
-
-
+# 创建三维场景
 def create_box(x, y, z, dx, dy, dz):
     """Create a box with one corner at the given coordinates and with the given dimensions."""
     return [
@@ -67,13 +35,14 @@ def create_box(x, y, z, dx, dy, dz):
             (x, y + dy, z + dz),
         ],
     ]
-# TreeNode class
+
+# 三维盒子
 class TreeNode:
     def __init__(self, point, parent=None):
         self.point = np.array(point)
         self.parent = parent
 
-# Check if point is in obstacle
+# 判断点是否在障碍物内
 def point_in_obstacle(point, obstacles):
     for obstacle in obstacles:
         if (
@@ -84,7 +53,7 @@ def point_in_obstacle(point, obstacles):
             return True
     return False
 
-# Generate a random point
+# 生成随机点
 def generate_random_point(x_max, y_max, z_min, z_max):
     return np.array(
         [
@@ -94,79 +63,71 @@ def generate_random_point(x_max, y_max, z_min, z_max):
         ]
     )
 
-# RRT algorithm
-def rrt(start, goal, obstacles, num_iterations=500, max_distance=50, min_clearance=30):
-    x_max, y_max = 1000, 1000
-    z_min, z_max = 100, 400
+# 判断两点之间是否有障碍物
+def is_obstructed(cell, obstacles, grid_size):
+    for obstacle in obstacles:
+        x_min, y_min, z_min = obstacle[0]
+        dx, dy, dz = obstacle[1]
+        x_max, y_max, z_max = x_min + dx, y_min + dy, z_min + dz
 
-    start_node = TreeNode(start)
-    goal_node = TreeNode(goal)
+        if x_min <= cell[0] <= x_max and y_min <= cell[1] <= y_max:
+            return True
+    return False
 
-    tree_nodes = [start_node]
-    tree_kdtree = KDTree(start.reshape(1, -1))
+# 创建地面网格
+def create_ground_grid(x_max, y_max, grid_size, obstacles):
+    grid = []
+    for x in range(0, x_max, grid_size):
+        for y in range(0, y_max, grid_size):
+            cell = (x + grid_size // 2, y + grid_size // 2)
+            if not is_obstructed(cell, obstacles, grid_size):
+                grid.append(cell)
+    return np.array(grid)
 
-    for _ in range(num_iterations):
-        random_point = generate_random_point(x_max, y_max, z_min, z_max)
+# Greedy算法实现
+def greedy_traversal(start, goal, ground_grid):
+    unvisited = set(range(len(ground_grid)))
+    path = [start]
+    current_index = None
 
-        if point_in_obstacle(random_point, obstacles):
-            continue
+    # Find the closest start cell
+    min_distance = float("inf")
+    for i, cell in enumerate(ground_grid):
+        distance = np.linalg.norm(start[:2] - np.array([*cell]))
+        if distance < min_distance:
+            min_distance = distance
+            current_index = i
 
-        nearest_index = tree_kdtree.query(
-            random_point.reshape(1, -1), return_distance=False
-        )[0][0]
-        nearest_node = tree_nodes[nearest_index]
+    unvisited.remove(current_index)
+    start_z = start[2]
+    goal_z = goal[2]
 
-        new_point = (
-            nearest_node.point
-            + (random_point - nearest_node.point)
-            / np.linalg.norm(random_point - nearest_node.point)
-            * max_distance
-        )
+    # Compute the next point's z value based on the relative distance from the start to the goal
+    next_z = start_z + (1 - (min_distance / np.linalg.norm(goal[:2] - start[:2]))) * (goal_z - start_z)
+    path.append(np.array([*ground_grid[current_index], next_z]))
 
-        if point_in_obstacle(new_point, obstacles):
-            continue
+    while unvisited:
+        min_distance = float("inf")
+        next_index = None
 
-        too_close_to_obstacle = False
-        for obstacle in obstacles:
-            obs_center = np.array(
-                [
-                    obstacle[0][0] + obstacle[1][0] / 2,
-                    obstacle[0][1] + obstacle[1][1] / 2,
-                    obstacle[0][2] + obstacle[1][2] / 2,
-                ]
-            )
-            if (
-                np.linalg.norm(new_point - obs_center)
-                <= min_clearance
-            ):
-                too_close_to_obstacle = True
-                break
+        for i in unvisited:
+            distance = np.linalg.norm(path[-1][:2] - np.array([*ground_grid[i]]))
+            if distance < min_distance:
+                min_distance = distance
+                next_index = i
 
-        if too_close_to_obstacle:
-            continue
+        unvisited.remove(next_index)
+        current_index = next_index
 
-        new_node = TreeNode(new_point, parent=nearest_node)
-        tree_nodes.append(new_node)
-        tree_kdtree = KDTree(np.vstack([tree_kdtree.data, new_point.reshape(1, -1)]))
-
-        if np.linalg.norm(new_point - goal) <= max_distance:
-            goal_node.parent = new_node
-            break
-
-    path = []
-    current_node = goal_node
-
-    while current_node.parent is not None:
-        path.append(current_node.point)
-        current_node = current_node.parent
-
-    path.append(start)
-    path.reverse()
+        # Compute the next point's z value based on the relative distance from the start to the goal
+        next_z = start_z + (1 - (min_distance / np.linalg.norm(goal[:2] - start[:2]))) * (goal_z - start_z)
+        path.append(np.array([*ground_grid[current_index], next_z]))
 
     return path
 
+# 梯度下降法顺滑路径
 def gradient_descent_path_smooth(
-    path, obstacles_info, alpha=0.01, beta=0.1, max_iterations=3, tolerance=1e-5
+    path, obstacles_info, alpha=0.01, beta=0.08, max_iterations=15, tolerance=1e-5
 ):
     path = path.astype(np.float64)
 
@@ -199,7 +160,7 @@ def gradient_descent_path_smooth(
 
             if (
                 x_min <= path[i][0] <= x_max
-                and y_min <= path[i][1] <= x_max
+                and y_min <= path[i][1] <= y_max
                 and z_min <= path[i][2] <= z_max
             ):
                 grad[:2] += beta * (
@@ -219,6 +180,7 @@ def gradient_descent_path_smooth(
 
     return optimized_path
 
+# 生成障碍物
 def generate_obstacles(num_obstacles, x_lim, y_lim, min_distance, start, goal):
     obstacles_info = []
     for _ in range(num_obstacles):
@@ -254,25 +216,31 @@ def generate_obstacles(num_obstacles, x_lim, y_lim, min_distance, start, goal):
 
     return obstacles_info
 
-def create_ground_grid(x_max, y_max, grid_size, obstacles):
-    grid = []
-    for x in range(0, x_max, grid_size):
-        for y in range(0, y_max, grid_size):
-            cell = (x + grid_size // 2, y + grid_size // 2)
-            if not is_obstructed(cell, obstacles, grid_size):
-                grid.append(cell)
-    return np.array(grid)
+# 在场景中添加障碍物
+def create_obstacles(ax, num_obstacles, x_lim, y_lim, min_distance, start, goal):
+    obstacles_info = generate_obstacles(
+    num_obstacles, x_lim, y_lim, min_distance, start, goal
+)
 
-def is_obstructed(cell, obstacles, grid_size):
-    for obstacle in obstacles:
-        x_min, y_min, z_min = obstacle[0]
-        dx, dy, dz = obstacle[1]
-        x_max, y_max, z_max = x_min + dx, y_min + dy, z_min + dz
 
-        if x_min <= cell[0] <= x_max and y_min <= cell[1] <= y_max:
-            return True
-    return False
+    for obstacle_info in obstacles_info:
+        obstacle = create_box(*obstacle_info[0], *obstacle_info[1])
+        face_colors = np.random.rand(3)
+        ax.add_collection3d(
+        Poly3DCollection(
+            obstacle, facecolors=face_colors, linewidths=1, edgecolors="k", alpha=0.7
+        )
+    )
 
+    for obstacle in obstacles_info:
+        box = Poly3DCollection(
+        create_box(*obstacle[0], *obstacle[1]), alpha=0.3, linewidths=1, edgecolors="k"
+    )
+        box.set_facecolor("gray")
+        ax.add_collection3d(box)
+    return obstacles_info
+
+# 显示环境
 def show_env(start, goal, obstacles_info, path):
     path = np.array(path + [goal])
     start_height = start[2]
@@ -351,58 +319,32 @@ def show_env(start, goal, obstacles_info, path):
     ax2.axis("equal")
     ax2.grid(True)
 
+# Show the plots
     plt.show()
 
-def creat_ob(ax, num_obstacles, x_lim, y_lim, min_distance, start, goal):
-    obstacles_info = generate_obstacles(
-    num_obstacles, x_lim, y_lim, min_distance, start, goal
-)
-
-
-    for obstacle_info in obstacles_info:
-        obstacle = create_box(*obstacle_info[0], *obstacle_info[1])
-        face_colors = np.random.rand(3)
-        ax.add_collection3d(
-        Poly3DCollection(
-            obstacle, facecolors=face_colors, linewidths=1, edgecolors="k", alpha=0.7
-        )
-    )
-
-    for obstacle in obstacles_info:
-        box = Poly3DCollection(
-        create_box(*obstacle[0], *obstacle[1]), alpha=0.3, linewidths=1, edgecolors="k"
-    )
-        box.set_facecolor("gray")
-        ax.add_collection3d(box)
-    return obstacles_info
-
-# Scene setup
+# 初始化环境
 fig = plt.figure()
 ax = fig.add_subplot(111, projection="3d")
 
+# 定义函数参数
+num_obstacles = 15   # 障碍物数量
+x_lim, y_lim = 950, 950  # 场景大小
+min_distance = 200  # 障碍物最小间距
 
-num_obstacles = 15
-x_lim, y_lim = 950, 950
-min_distance = 150
+start = np.array([50, 50, 100])  # 起点
+goal = np.array([900, 900, 300])  # 终点
 
-start = np.array([50, 50, 100])
-goal = np.array([900, 900, 300])
+# 障碍物坐标列表
+obstacles_info = create_obstacles(ax, num_obstacles, x_lim, y_lim, min_distance, start, goal)
 
-obstacles_info = creat_ob(ax, num_obstacles, x_lim, y_lim, min_distance, start, goal)
+# 场景网格化
+ground_grid = create_ground_grid(1000, 1000, 80, obstacles_info)
 
+# 路径规划
+# path = greedy_traversal(start, goal, ground_grid)
 
-# Run RRT algorithm
-rrt_path = rrt(start, goal, obstacles_info)
+# 显示环境
+# show_env(start, goal, obstacles_info, path)
 
-# Create local ground grid around the RRT path
-local_grid = create_local_ground_grid(rrt_path, grid_size=10, clearance=100, obstacles=obstacles_info)
-
-# Add the start and goal nodes to the local grid
-local_grid = np.vstack([local_grid, start, goal])
-
-# Build the graph and find the shortest path using Dijkstra's algorithm
-graph = build_graph(local_grid, obstacles_info, max_distance=100)
-shortest_path = find_shortest_path(graph, start, goal)
-
-# Visualize the result
-show_env(start, goal, obstacles_info, shortest_path)
+# debug
+print("obstacles_info: ", type(obstacles_info))

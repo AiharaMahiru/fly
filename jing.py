@@ -1,85 +1,85 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def sampleGeneartor():
-    X = np.arange(0, 5, 0.01)
-    Y = X**3 - 4*X**2 + 1*X - 3
-    e = np.random.normal(0, 2, 500)
-    Y = Y + e
-    plt.scatter(X, Y, 0.5)
-    return X, Y
+# Objective function
+def objective_function(position):
+    return np.sum(position**2)
 
-class woa():
-    #初始化
-    def __init__(self, X_train, Y_train, LB=np.array([-5, -5, -5, -5]),\
-                 UB= np.array([5, 5, 5, 5]), dim=4, b=1, whale_num=20, max_iter=500):
-        self.X_train = X_train
-        self.Y_train = Y_train
-        self.LB = LB
-        self.UB = UB
-        self.dim = dim
-        self.whale_num = whale_num
-        self.max_iter = max_iter
+# Whale Optimization Algorithm (WOA)
+class WOA:
+    def __init__(self, population_size, search_space, num_iterations, b, a):
+        self.population_size = population_size
+        self.search_space = search_space
+        self.num_iterations = num_iterations
         self.b = b
-        #Initialize the locations of whale
-        self.X = np.random.uniform(0, 1, (whale_num, dim))*(UB - LB) + LB
-        self.gBest_score = np.inf
-        self.gBest_curve = np.zeros(max_iter)
-        self.gBest_X = np.zeros(dim) 
-    
-    #适应度函数  
-    def fitFunc(self, input):
-        a = input[0]; b = input[1]; c = input[2]; d = input[3]
-        Y_Hat = a*self.X_train**3 + b*self.X_train**2 + c*self.X_train + d 
-        fitFunc = np.sum((Y_Hat - self.Y_train)**2)/np.shape(Y_Hat)[0]
-        return fitFunc   
-        
-    #优化模块  
-    def opt(self):
-        t = 0
-        while t < self.max_iter:
-            for i in range(self.whale_num):
-                self.X[i, :] = np.clip(self.X[i, :], self.LB, self.UB) #Check boundries
-                fitness = self.fitFunc(self.X[i, :])
-                # Update the gBest_score and gBest_X
-                if fitness < self.gBest_score:
-                    self.gBest_score = fitness
-                    self.gBest_X = self.X[i, :].copy()
-            
-            a = 2*(self.max_iter - t)/self.max_iter
-            #Update the location of whales
-            for i in range(self.whale_num):
-                p = np.random.uniform()
-                R1 = np.random.uniform()
-                R2 = np.random.uniform()
-                A = 2*a*R1 - a
-                C = 2*R2
-                l = 2*np.random.uniform() - 1
-                
-                if p >= 0.5:
-                    D = abs(self.gBest_X - self.X[i, :])
-                    self.X[i, :] = D*np.exp(self.b*l)*np.cos(2*np.pi*l)+self.gBest_X
-                else:
+        self.a = a
+
+        self.population = np.random.rand(population_size, 2) * (search_space[:, 1] - search_space[:, 0]) + search_space[:, 0]
+
+    def run(self):
+        global_best = np.min([objective_function(whale) for whale in self.population])
+        global_best_position = self.population[np.argmin([objective_function(whale) for whale in self.population])]
+
+        for iteration in range(self.num_iterations):
+            self.a -= (1 / self.num_iterations)  # Linearly decreasing a
+
+            for i, whale in enumerate(self.population):
+                r1 = np.random.rand()
+                r2 = np.random.rand()
+                A = 2 * self.a * r1 - self.a
+                C = 2 * r2
+
+                p = np.random.rand()
+                b_rand = 1  # Random value for b
+
+                if p < 0.5:
                     if abs(A) < 1:
-                        D = abs(C*self.gBest_X - self.X[i, :])
-                        self.X[i, :] = self.gBest_X - A*D
-                    else:
-                        rand_index = np.random.randint(low=0, high=self.whale_num)
-                        X_rand = self.X[rand_index, :]
-                        D = abs(C*X_rand - self.X[i, :])
-                        self.X[i, :] = X_rand - A*D
-        
-            self.gBest_curve[t] = self.gBest_score       
-            if (t%100 == 0) :
-                print('At iteration: ' + str(t))  
-            t+=1 
-        return self.gBest_curve, self.gBest_X
+                        D = abs(C * global_best_position - whale)
+                        self.population[i] = global_best_position - A * D
+                    elif abs(A) >= 1:
+                        rand_leader = self.population[np.random.randint(len(self.population))]
+                        D = abs(C * rand_leader - whale)
+                        self.population[i] = rand_leader - A * D
+                else:
+                    D = abs(global_best_position - whale)
+                    self.population[i] = D * np.exp(self.b * b_rand) * np.cos(2 * np.pi * b_rand) + global_best_position
 
-X, Y = sampleGeneartor()
-fitnessCurve, para = woa(X, Y, dim=4, whale_num=60, max_iter=2000).opt()
-yPre = para[0]*X**3 + para[1]*X**2 + para[2]*X + para[3] 
-plt.scatter(X, yPre, 0.5)
+                # Update global best
+                if objective_function(whale) < global_best:
+                    global_best = objective_function(whale)
+                    global_best_position = whale
 
-plt.figure()
-plt.plot(fitnessCurve, linewidth='0.5')
-plt.show()
+        return global_best, global_best_position
+
+def main():
+    # Parameters
+    num_whales = 30
+    num_iterations = 50
+    search_space = np.array([[-5, 5], [-5, 5]])
+    b = 1
+    a = 2
+
+    # Initialize WOA
+    woa_instance = WOA(num_whales, search_space, num_iterations, b, a)
+
+    # Run WOA
+    global_best, global_best_position = woa_instance.run()
+
+    # Print results
+    print("Global Best:", global_best)
+    print("Global Best Position:", global_best_position)
+
+    # Plot result
+    # Plot result
+    fig, ax = plt.subplots()
+    ax.scatter(woa_instance.population[:, 0], woa_instance.population[:, 1], c='blue', label='Whales')
+    ax.scatter(global_best_position[0], global_best_position[1], c='red', marker='X', label='Global Best')
+    ax.set_xlim(search_space[0, 0], search_space[0, 1])
+    ax.set_ylim(search_space[1, 0], search_space[1, 1])
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.legend()
+    plt.show()
+
+if __name__ == "__main__":
+    main()
