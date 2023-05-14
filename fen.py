@@ -61,7 +61,7 @@ def calculate_video_delay(video_w, subcarrier_spacing, v_packet_size, distance, 
 
     return video_delay*1e3
 
-def calculate_sensor_delay(sensor_w, subcarrier_spacing, packet_size, distance):
+def calculate_sensor_delay(sensor_w, subcarrier_spacing, s_packet_size, distance, mimo):
     sensor_bandwidth = sensor_w
 
     sensor_speed = sensor_bandwidth * subcarrier_spacing * 1e3
@@ -83,7 +83,7 @@ def calculate_speed(bandiwidth, subcarrier_spacing, mimo):
     speed = bandiwidth * subcarrier_spacing * mimo
     return speed / 1e3
 
-def plot_metrics(sensor_bandwidth, video_bandwidth, sensor_delay, video_delay):
+def plot_metrics(sensor_bandwidth, video_bandwidth, sensor_delay, video_delay, sensor_speed, video_speed, sensor_allocation, video_allocation):
     n_drones = len(sensor_bandwidth)
     # print(n_drones)
     drone_indices = list(range(n_drones))
@@ -208,74 +208,93 @@ def plot_bandwidth_allocation(sensor_allocation, video_allocation):
 
     plt.show()
 
-#无人机数量
-n_drones = 200
-drones = [DummyDrone(i) for i in range(n_drones)]
+def fen(x1, x2):
+    '''
+    x1:传感器抽象
+    x2:视频抽象
+    '''
+    #无人机数量
+    n_drones = 20
+    drones = [DummyDrone(i) for i in range(n_drones)]
 
-#划分传输比例
-sensor_demands = [50] * n_drones
-video_demands = [500] * n_drones
+    #划分传输比例
+    sensor_demands = [x1] * n_drones
+    video_demands = [x2] * n_drones
 
-bandwidth = 100e6  # 频宽为100MHz
-subcarrier_spacing = 15e3  # 子载波间隔为15kHz
+    bandwidth = 100e6  # 频宽为100MHz
+    subcarrier_spacing = 15e3  # 子载波间隔为15kHz
 
-# 计算总的子载波数量
-total_subcarriers = int(bandwidth / subcarrier_spacing)
+    # 计算总的子载波数量
+    total_subcarriers = int(bandwidth / subcarrier_spacing)
 
-available_resources = total_subcarriers
+    available_resources = total_subcarriers
 
-performance_requirements = [
-    {'max_latency': 5e-3, 'packet_loss_rate': 0.001},
-    {'min_bandwidth': 50e6, 'packet_loss_rate': 0.01}
-]
+    performance_requirements = [
+        {'max_latency': 5e-3, 'packet_loss_rate': 0.001},
+        {'min_bandwidth': 50e6, 'packet_loss_rate': 0.01}
+    ]
 
-resource_allocation = qos_based_allocation(len(sensor_demands) + len(video_demands), sensor_demands + video_demands, available_resources, performance_requirements)
+    resource_allocation = qos_based_allocation(len(sensor_demands) + len(video_demands), sensor_demands + video_demands, available_resources, performance_requirements)
 
-print('可用资源：', available_resources)
+    print('可用资源：', available_resources)
 
 
-sensor_allocation = resource_allocation[:n_drones]
-video_allocation = resource_allocation[n_drones:]
+    sensor_allocation = resource_allocation[:n_drones]
+    video_allocation = resource_allocation[n_drones:]
 
-slice_1 = create_network_slice(slice_type='sensor', resources=sensor_allocation)
-slice_2 = create_network_slice(slice_type='video', resources=video_allocation)
+    slice_1 = create_network_slice(slice_type='sensor', resources=sensor_allocation)
+    slice_2 = create_network_slice(slice_type='video', resources=video_allocation)
 
-for i in range(n_drones):
-    drone = drones[i]
-    drone.connect(slice_1, allocation=sensor_allocation[i])
-    drone.connect(slice_2, allocation=video_allocation[i])
+    for i in range(n_drones):
+        drone = drones[i]
+        drone.connect(slice_1, allocation=sensor_allocation[i])
+        drone.connect(slice_2, allocation=video_allocation[i])
 
-# 计算传感器和视频信号的带宽和延迟
-sensor_bandwidth = [calculate_bandwidth(subcarrier_count, subcarrier_spacing) for subcarrier_count in sensor_allocation]
-video_bandwidth = [calculate_bandwidth(subcarrier_count, subcarrier_spacing) for subcarrier_count in video_allocation]
+    # 计算传感器和视频信号的带宽和延迟
+    sensor_bandwidth = [calculate_bandwidth(subcarrier_count, subcarrier_spacing) for subcarrier_count in sensor_allocation]
+    video_bandwidth = [calculate_bandwidth(subcarrier_count, subcarrier_spacing) for subcarrier_count in video_allocation]
 
-v_packet_size = 50e6
-s_packet_size = 15e3
-mimo = 4
+    v_packet_size = 50e6
+    s_packet_size = 15e3
+    mimo = 64
 
-sensor_delay = []
-video_delay = []
-video_speed = []
-sensor_speed = []
+    sensor_delay = []
+    video_delay = []
+    video_speed = []
+    sensor_speed = []
 
-# 假设无人机之间的距离为100米
-drone_distance = 100
+    # 假设无人机之间的距离为100米
+    drone_distance = 100
 
-for i in range(n_drones):
-    sensor_subcarriers = sensor_allocation[i]
-    video_subcarriers = video_allocation[i]
+    for i in range(n_drones):
+        sensor_subcarriers = sensor_allocation[i]
+        video_subcarriers = video_allocation[i]
 
-    sensor_w = sensor_bandwidth[i]
-    video_w = video_bandwidth[i]
+        sensor_w = sensor_bandwidth[i]
+        video_w = video_bandwidth[i]
 
-    sensor_delay.append(calculate_sensor_delay(sensor_w, subcarrier_spacing, s_packet_size, drone_distance))
-    video_delay.append(calculate_video_delay(video_w, subcarrier_spacing, v_packet_size, drone_distance, mimo))
+        sensor_delay.append(calculate_sensor_delay(sensor_w, subcarrier_spacing, s_packet_size, drone_distance,mimo))
+        video_delay.append(calculate_video_delay(video_w, subcarrier_spacing, v_packet_size, drone_distance, mimo))
 
-    video_speed.append(calculate_speed(video_w, subcarrier_spacing, mimo))
-    sensor_speed.append(calculate_speed(sensor_w, subcarrier_spacing, mimo))
+        video_speed.append(calculate_speed(video_w, subcarrier_spacing, mimo))
+        sensor_speed.append(calculate_speed(sensor_w, subcarrier_spacing, mimo))
 
-    print('无人机{}的传感器信号延迟为{}ms，视频信号延迟为{}ms'.format(i, sensor_delay[i], video_delay[i]))
-    print('无人机{}的传感器信号速度为{}mbps，视频信号速度为{}mbps'.format(i, sensor_speed[i], video_speed[i]))
+        # print('无人机{}的传感器信号延迟为{}ms，视频信号延迟为{}ms'.format(i, sensor_delay[i], video_delay[i]))
+        # print('无人机{}的传感器信号速度为{}mbps，视频信号速度为{}mbps'.format(i, sensor_speed[i], video_speed[i]))
+    avg_sensor_delay = np.mean(sensor_delay)
+    avg_video_delay = np.mean(video_delay)
+    avg_video_speed = np.mean(video_speed)
+    avg_sensor_speed = np.mean(sensor_speed)
 
-# 绘制带宽和延迟图像
-plot_metrics(sensor_bandwidth, video_bandwidth, sensor_delay, video_delay)
+    print('Average Sensor Delay: {:.2f} ms'.format(avg_sensor_delay))
+    print('Average Sensor Speed: {:.2f} Mbps'.format(avg_sensor_speed))
+    print('Average Video Delay: {:.2f} ms'.format(avg_video_delay))
+    print('Average Video Speed: {:.2f} Mbps'.format(avg_video_speed))
+
+    # 绘制带宽和延迟图像
+    # plot_metrics(sensor_bandwidth, video_bandwidth, sensor_delay, video_delay, sensor_speed, video_speed, sensor_allocation, video_allocation)
+
+    return avg_sensor_delay, avg_video_speed
+
+if __name__ == '__main__':
+    fen(1, 15)

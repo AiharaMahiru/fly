@@ -341,10 +341,10 @@ obstacles_info = create_obstacles(ax, num_obstacles, x_lim, y_lim, min_distance,
 ground_grid = create_ground_grid(1000, 1000, 80, obstacles_info)
 
 # 路径规划
-# path = greedy_traversal(start, goal, ground_grid)
+path = greedy_traversal(start, goal, ground_grid)
 
 # 显示环境
-# show_env(start, goal, obstacles_info, path)
+show_env(start, goal, obstacles_info, path)
 
 # debug
-print("obstacles_info: ", type(obstacles_info))
+# print("obstacles_info: ", type(obstacles_info))
