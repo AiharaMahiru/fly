@@ -124,6 +124,47 @@ def greedy_traversal(start, goal, ground_grid):
         path.append(np.array([*ground_grid[current_index], next_z]))
 
     return path
+'''
+函数 greedy_traversal(开始点,目标点,地面网格):
+
+初始化未访问集合为ground_grid中的所有索引
+
+初始化路径列表为开始点
+
+初始化当前索引current_index为None(初始最近点)
+
+找到最近的开始点:
+
+对ground_grid中的每个格子:
+*计算与开始点的距离
+*如果更近则更新最小距离min_distance和当前索引current_index
+将current_index从未访问集合中移除
+
+初始化start_z和goal_z分别从开始点和目标点获得
+
+根据开始点到目标点的相对距离计算下一个点的z值
+
+将下一个点添加到路径列表中
+
+若未访问集合不为空:
+
+初始化最小距离min_distance 为无穷大
+
+初始化下一个索引next_index 为None(下一个最近点)
+
+对未访问集合中的每个索引i:
+
+计算与路径列表中前一个点的距离
+如果更近则更新最小距离min_distance 和下一个索引next_index
+将next_index从未访问集合中移除
+
+将当前索引current_index赋值为next_index
+
+根据开始点到目标点的相对距离计算下一个点的z值
+
+将下一个点添加到路径列表中
+'''
+
 
 # 梯度下降法顺滑路径
 def gradient_descent_path_smooth(
@@ -179,6 +220,28 @@ def gradient_descent_path_smooth(
         optimized_path = new_path
 
     return optimized_path
+'''
+函数gradient_descent_path_smooth(路径、障碍物信息、α、β、最大迭代次数、公差):
+
+把路径转换成浮点数
+
+定义path_cost()函数计算基于平滑度和障碍物的成本
+
+定义gradient()函数根据平滑度和障碍物在每个点计算梯度
+
+把路径复制给optimized_path
+
+对最大迭代次数:
+
+把optimized_path复制给new_path
+对new_path中的每一个点i(除端点):
+计算该点的梯度
+通过减去α乘以梯度来更新new_path[i]
+如果 new_path 和 optimized_path之间的距离小于公差:
+break
+赋值optimized_path = new_path
+返回optimized_path
+'''
 
 # 生成障碍物
 def generate_obstacles(num_obstacles, x_lim, y_lim, min_distance, start, goal):
@@ -348,3 +411,27 @@ show_env(start, goal, obstacles_info, path)
 
 # debug
 # print("obstacles_info: ", type(obstacles_info))
+'''
+流程：
+
+初始化环境 - 创建3D图形和轴,定义参数如障碍物数量、场景大小等
+
+生成障碍物 - 使用给定的限制生成随机障碍物
+
+创建地面网格 - 在不包含障碍物的区域创建网格
+
+找出路径 - 使用贪心遍历算法找到起点到目标点的初始路径
+
+平滑路径 - 使用梯度下降方法平滑路径以避开障碍物
+
+显示环境 - 在3D和2D图中显示 paths 和障碍物
+
+主函数 - 定义参数并按照上述步骤执行:
+
+生成障碍物
+创建地面网格
+找到初始路径
+平滑最优路径
+显示结果环境
+调用主函数运行整个过程,生成优化后的3D和2D路径
+'''

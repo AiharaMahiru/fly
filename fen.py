@@ -18,12 +18,27 @@ class DummyNetworkSlice:
         self.slice_type = slice_type
         self.resources = resources
 
+'''
+类 DummyDrone (为硬件调试预留接口)
+
+初始化 DummyDrone 类的实例，设置索引
+定义连接函数：将网络切片和分配连接到无人机
+
+类 DummyNetworkSlice
+
+初始化 DummyNetworkSlice 类的实例，设置切片类型和资源
+'''
+
 def create_network_slice(slice_type, resources):
     return DummyNetworkSlice(slice_type, resources)
+
+'创建实例：网络切片'
 
 def calculate_bandwidth(subcarrier_count, subcarrier_spacing):
     bandwidth = subcarrier_count * subcarrier_spacing
     return bandwidth/1e6
+
+'计算带宽：子载波数量 * 子载波间距     返回带宽（以 MHz 为单位）'
 
 def bandwidth_allocation(n_services, service_demands, available_bandwidth):
     demand_matrix = np.array(service_demands).reshape((2, -1)).T
@@ -40,6 +55,13 @@ def bandwidth_allocation(n_services, service_demands, available_bandwidth):
     resource_allocation = res.x
 
     return resource_allocation
+
+'''
+将服务需求重塑为需求矩阵
+构建线性规划模型
+求解线性规划问题
+返回资源分配结果
+'''
 
 def calculate_video_delay(video_w, subcarrier_spacing, v_packet_size, distance, mimo):
     # sensor_bandwidth = calculate_bandwidth(sensor_subcarriers, subcarrier_spacing)
@@ -61,6 +83,16 @@ def calculate_video_delay(video_w, subcarrier_spacing, v_packet_size, distance, 
 
     return video_delay*1e3
 
+'''
+计算视频带宽
+计算视频传输速度
+计算视频传输时间
+计算传播延迟
+随机选择延迟(模拟抖动)
+计算视频延迟
+返回视频延迟（以毫秒为单位）
+'''
+
 def calculate_sensor_delay(sensor_w, subcarrier_spacing, s_packet_size, distance, mimo):
     sensor_bandwidth = sensor_w
 
@@ -79,9 +111,20 @@ def calculate_sensor_delay(sensor_w, subcarrier_spacing, s_packet_size, distance
 
     return sensor_delay*1e3
 
+'''
+计算传感器带宽
+计算传感器传输速度
+计算传感器传输时间
+计算传播延迟
+随机选择延迟(模拟抖动)
+计算传感器延迟
+返回传感器延迟（以毫秒为单位）
+'''
+
 def calculate_speed(bandiwidth, subcarrier_spacing, mimo):
     speed = bandiwidth * subcarrier_spacing * mimo
     return speed / 1e3
+'计算速度：带宽 * 子载波间距 * MIMO   返回速度（以 Mbps 为单位）'
 
 def plot_metrics(sensor_bandwidth, video_bandwidth, sensor_delay, video_delay, sensor_speed, video_speed, sensor_allocation, video_allocation):
     n_drones = len(sensor_bandwidth)
@@ -127,6 +170,12 @@ def plot_metrics(sensor_bandwidth, video_bandwidth, sensor_delay, video_delay, s
 
     plt.show()
 
+'''
+设置图表参数, 两行两列
+绘制每个指标的柱状图
+显示图表
+'''
+
 def qos_based_allocation(n_services, service_demands, available_resources, performance_requirements):
     resource_allocation = [0] * n_services
 
@@ -156,57 +205,13 @@ def qos_based_allocation(n_services, service_demands, available_resources, perfo
 
     return resource_allocation
 
-def plot_resource_allocation(sensor_allocation, video_allocation):
-    n_drones = len(sensor_allocation)
-    drone_indices = list(range(n_drones))
-
-    fig, ax = plt.subplots()
-    sensor_bars = ax.bar(drone_indices, sensor_allocation, width=0.4, label='Sensor')
-    video_bars = ax.bar([i + 0.4 for i in drone_indices], video_allocation, width=0.4, label='Video')
-
-    ax.set_title('无人机传感器和视频信号的资源分配')
-    ax.set_xlabel('无人机编号')
-    ax.set_ylabel('资源分配')
-
-    ax.legend()
-
-    plt.show()
-
-def max_weight_matching_allocation(n_services, service_demands, available_resources):
-    demand_matrix = np.array(service_demands).reshape((2, -1)).T
-    allocation_matrix = np.zeros((n_services // 2, 2))
-
-    while available_resources > 0 and np.any(demand_matrix > 0):
-        row_indices, col_indices = np.where(demand_matrix > 0)
-        max_weight = np.max(demand_matrix[row_indices, col_indices])
-        max_indices = np.where(demand_matrix == max_weight)
-        row_index = max_indices[0][0]
-        col_index = max_indices[1][0]
-        allocation = min(available_resources, max_weight)
-        allocation_matrix[row_index, col_index] = allocation
-        demand_matrix[row_index, :] -= allocation
-        demand_matrix[:, col_index] -= allocation
-        available_resources -= allocation
-
-    resource_allocation = allocation_matrix.flatten()
-
-    return resource_allocation
-
-def plot_bandwidth_allocation(sensor_allocation, video_allocation):
-    n_drones = len(sensor_allocation)
-    drone_indices = list(range(n_drones))
-
-    fig, ax = plt.subplots()
-    sensor_bars = ax.bar(drone_indices, sensor_allocation, width=0.4, label='Sensor')
-    video_bars = ax.bar([i + 0.4 for i in drone_indices], video_allocation, width=0.4, label='Video')
-
-    ax.set_title('无人机传感器和视频信号的频宽分配')
-    ax.set_xlabel('无人机编号')
-    ax.set_ylabel('频宽分配')
-
-    ax.legend()
-
-    plt.show()
+'''
+初始化资源分配
+随机分配资源作为示例
+根据可用资源按比例调整分配
+根据性能要求进行调整
+返回资源分配结果
+'''
 
 def fen(x1, x2):
     '''
@@ -236,8 +241,7 @@ def fen(x1, x2):
 
     resource_allocation = qos_based_allocation(len(sensor_demands) + len(video_demands), sensor_demands + video_demands, available_resources, performance_requirements)
 
-    print('可用资源：', available_resources)
-
+    # print('可用资源：', available_resources)
 
     sensor_allocation = resource_allocation[:n_drones]
     video_allocation = resource_allocation[n_drones:]
@@ -254,10 +258,14 @@ def fen(x1, x2):
     sensor_bandwidth = [calculate_bandwidth(subcarrier_count, subcarrier_spacing) for subcarrier_count in sensor_allocation]
     video_bandwidth = [calculate_bandwidth(subcarrier_count, subcarrier_spacing) for subcarrier_count in video_allocation]
 
+    # 不同服务的包大小
     v_packet_size = 50e6
     s_packet_size = 15e3
-    mimo = 64
 
+    # mimo数
+    mimo = 4
+
+    # 预设延时和传输速度
     sensor_delay = []
     video_delay = []
     video_speed = []
@@ -267,8 +275,8 @@ def fen(x1, x2):
     drone_distance = 100
 
     for i in range(n_drones):
-        sensor_subcarriers = sensor_allocation[i]
-        video_subcarriers = video_allocation[i]
+        # sensor_subcarriers = sensor_allocation[i]
+        # video_subcarriers = video_allocation[i]
 
         sensor_w = sensor_bandwidth[i]
         video_w = video_bandwidth[i]
@@ -281,20 +289,52 @@ def fen(x1, x2):
 
         # print('无人机{}的传感器信号延迟为{}ms，视频信号延迟为{}ms'.format(i, sensor_delay[i], video_delay[i]))
         # print('无人机{}的传感器信号速度为{}mbps，视频信号速度为{}mbps'.format(i, sensor_speed[i], video_speed[i]))
+
+    # 计算平均延迟和平均传输速度
     avg_sensor_delay = np.mean(sensor_delay)
     avg_video_delay = np.mean(video_delay)
     avg_video_speed = np.mean(video_speed)
     avg_sensor_speed = np.mean(sensor_speed)
 
-    print('Average Sensor Delay: {:.2f} ms'.format(avg_sensor_delay))
-    print('Average Sensor Speed: {:.2f} Mbps'.format(avg_sensor_speed))
-    print('Average Video Delay: {:.2f} ms'.format(avg_video_delay))
-    print('Average Video Speed: {:.2f} Mbps'.format(avg_video_speed))
+    # print('Average Sensor Delay: {:.2f} ms'.format(avg_sensor_delay))
+    # print('Average Sensor Speed: {:.2f} Mbps'.format(avg_sensor_speed))
+    # print('Average Video Delay: {:.2f} ms'.format(avg_video_delay))
+    # print('Average Video Speed: {:.2f} Mbps'.format(avg_video_speed))
 
     # 绘制带宽和延迟图像
-    # plot_metrics(sensor_bandwidth, video_bandwidth, sensor_delay, video_delay, sensor_speed, video_speed, sensor_allocation, video_allocation)
+    plot_metrics(sensor_bandwidth, video_bandwidth, sensor_delay, video_delay, sensor_speed, video_speed, sensor_allocation, video_allocation)
 
-    return avg_sensor_delay, avg_video_speed
+    return avg_sensor_delay,  avg_video_speed
 
-if __name__ == '__main__':
-    fen(1, 15)
+# if __name__ == '__main__':
+#     fen(1, 15)
+
+'''
+流程：
+
+用户输入传感器抽象量x1和视频抽象量x2
+
+初始化20个无人机,为每个无人机指定索引
+
+根据传感器抽象量x1和视频抽象量x2计算服务需求向量
+
+计算总的子载波数量,以及100MHz的总带宽
+
+使用QoS模型计算资源分配
+
+根据资源分配为每个无人机创建传感器和视频网络切片,并与相应的无人机连接
+
+计算每个无人机的:
+
+传感器带宽
+视频带宽
+传感器延迟
+视频延迟
+传感器速率
+视频速率
+计算平均传感器延迟和平均视频速率
+
+绘制带宽和延迟图表
+
+返回平均传感器延迟和平均视频速率
+'''
