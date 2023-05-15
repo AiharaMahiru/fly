@@ -5,6 +5,9 @@ import numpy as np
 import matplotlib
 matplotlib.rc("font",family='YouYuan')
 
+random.seed(42)
+np.random.seed(42)
+
 class DummyDrone:
     def __init__(self, index):
         self.index = index
@@ -302,9 +305,9 @@ def fen(x1, x2):
     # print('Average Video Speed: {:.2f} Mbps'.format(avg_video_speed))
 
     # 绘制带宽和延迟图像
-    plot_metrics(sensor_bandwidth, video_bandwidth, sensor_delay, video_delay, sensor_speed, video_speed, sensor_allocation, video_allocation)
+    # plot_metrics(sensor_bandwidth, video_bandwidth, sensor_delay, video_delay, sensor_speed, video_speed, sensor_allocation, video_allocation)
 
-    return avg_sensor_delay,  avg_video_speed
+    return avg_sensor_delay,  avg_video_speed, sensor_bandwidth, video_bandwidth, sensor_delay, video_delay, sensor_speed, video_speed, sensor_allocation, video_allocation
 
 # if __name__ == '__main__':
 #     fen(1, 15)

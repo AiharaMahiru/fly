@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from deap import base, creator, tools
 from deap import algorithms
 from functools import partial
-from fen import fen
+from resource_allocation import fen
 
 # Your fen function should be defined here
 

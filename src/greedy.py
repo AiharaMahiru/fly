@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import random
 
+random.seed(42)
+np.random.seed(42)
+
 # 创建三维场景
 def create_box(x, y, z, dx, dy, dz):
     """Create a box with one corner at the given coordinates and with the given dimensions."""
@@ -385,32 +388,37 @@ def show_env(start, goal, obstacles_info, path):
 # Show the plots
     plt.show()
 
-# 初始化环境
-fig = plt.figure()
-ax = fig.add_subplot(111, projection="3d")
+def main():
+    # 初始化环境
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection="3d")
 
-# 定义函数参数
-num_obstacles = 15   # 障碍物数量
-x_lim, y_lim = 950, 950  # 场景大小
-min_distance = 200  # 障碍物最小间距
+    # 定义函数参数
+    num_obstacles = 15   # 障碍物数量
+    x_lim, y_lim = 950, 950  # 场景大小
+    min_distance = 200  # 障碍物最小间距
 
-start = np.array([50, 50, 100])  # 起点
-goal = np.array([900, 900, 300])  # 终点
+    start = np.array([50, 50, 100])  # 起点
+    goal = np.array([900, 900, 300])  # 终点
 
-# 障碍物坐标列表
-obstacles_info = create_obstacles(ax, num_obstacles, x_lim, y_lim, min_distance, start, goal)
+    # 障碍物坐标列表
+    obstacles_info = create_obstacles(ax, num_obstacles, x_lim, y_lim, min_distance, start, goal)
 
-# 场景网格化
-ground_grid = create_ground_grid(1000, 1000, 80, obstacles_info)
+    # 场景网格化
+    ground_grid = create_ground_grid(1000, 1000, 80, obstacles_info)
 
-# 路径规划
-path = greedy_traversal(start, goal, ground_grid)
+    # 路径规划
+    path = greedy_traversal(start, goal, ground_grid)
 
-# 显示环境
-show_env(start, goal, obstacles_info, path)
+    # 显示环境
+    show_env(start, goal, obstacles_info, path)
 
 # debug
 # print("obstacles_info: ", type(obstacles_info))
+
+if __name__ == "__main__":
+    main()
+    
 '''
 流程：
 

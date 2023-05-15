@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib
 matplotlib.rc("font",family='YouYuan')
-from fen import fen
+from resource_allocation import fen
 
 class Double_MOWOA():
     def __init__(self, func, n_iter=50, n_pop=50, a=2, a_decay=0.9):

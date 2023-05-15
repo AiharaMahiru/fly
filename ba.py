@@ -1,33 +1,35 @@
 import numpy as np
-from fen import fen
+from resource_allocation import fen, plot_metrics
 from deap import base, creator, tools, algorithms
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+# from mpl_toolkits.mplot3d import Axes3D
 
 np.random.seed(42)  # 设置随机种子以保证可重复性
 
 # 定义目标函数
 def objective_function(individual):
     x1, x2 = individual
-    avg_sensor_delay, avg_video_speed = fen(x1, x2)
+    avg_sensor_delay,  avg_video_speed, sensor_bandwidth, video_bandwidth, sensor_delay, video_delay, sensor_speed, video_speed, sensor_allocation, video_allocation = fen(x1, x2)
 
     if avg_sensor_delay > 3 or avg_video_speed < 250:
         return float("inf"), 0
 
+    individual.attributes = (sensor_bandwidth, video_bandwidth, sensor_delay, video_delay, sensor_speed, video_speed, sensor_allocation, video_allocation)
     return -avg_sensor_delay, avg_video_speed
 
 # 创建优化问题的类型
 creator.create(
     "FitnessMax", base.Fitness, weights=(-1.0, 1.0)
 )  # 我们希望最小化avg_sensor_delay并最大化avg_video_speed
-creator.create("Individual", np.ndarray, fitness=creator.FitnessMax)
+# creator.create("Individual", np.ndarray, fitness=creator.FitnessMax)
+creator.create("Individual", np.ndarray, fitness=creator.FitnessMax, attributes=None)
 
 # 设置遗传算法
 toolbox = base.Toolbox()
 
 # 注册属性生成器（x1和x2）的范围
-x1_min, x1_max = 1, 100
-x2_min, x2_max = 1, 100
+x1_min, x1_max = 1, 1000
+x2_min, x2_max = 1, 1000
 toolbox.register("x1", np.random.randint, x1_min, x1_max + 1)
 toolbox.register("x2", np.random.randint, x2_min, x2_max + 1)
 
@@ -53,39 +55,89 @@ toolbox.register(
 )
 toolbox.register("select", tools.selNSGA2)
 
-# 设置主函数
-def main():
-    # 遗传算法的参数
-    population_size = 100
-    crossover_probability = 0.7
-    mutation_probability = 0.2
-    number_of_generations = 500
+def main(population_size, crossover_probability, mutation_probability, number_of_generations):
+
+    print_frequency = 50
 
     # 创建初始种群
     population = toolbox.population(n=population_size)
 
+    # 准备存储每100代的结果
+    all_avg_sensor_delays = []
+    all_avg_video_speeds = []
+
     # 运行遗传算法
-    population, logbook = algorithms.eaSimple(
-        population,
-        toolbox,
-        cxpb=crossover_probability,
-        mutpb=mutation_probability,
-        ngen=number_of_generations,
-        verbose=False,
-    )
+    for gen in range(1, number_of_generations + 1):
+        population = algorithms.varAnd(population, toolbox, cxpb=crossover_probability, mutpb=mutation_probability)
+        fits = toolbox.map(toolbox.evaluate, population)
+        for fit, ind in zip(fits, population):
+            ind.fitness.values = fit
 
-    # 提取最优个体
-    best_individual = tools.selBest(population, 1)[0]
-    best_x1, best_x2 = best_individual
-    best_avg_sensor_delay, best_avg_video_speed = objective_function(best_individual)
+        population = toolbox.select(population, k=len(population))
 
-    print("Best x1: {:.0f}, Best x2: {:.0f}".format(best_x1, best_x2))
-    print("Best Average Sensor Delay: {:.2f} ms".format(-best_avg_sensor_delay))
-    print("Best Average Video Speed: {:.2f} Mbps".format(best_avg_video_speed))
+
+        if gen % print_frequency == 0:
+            best_individual = tools.selBest(population, 1)[0]
+            best_avg_sensor_delay, best_avg_video_speed = objective_function(best_individual)
+            sensor_bandwidth, video_bandwidth, sensor_delay, video_delay, sensor_speed, video_speed, sensor_allocation, video_allocation = best_individual.attributes
+            if best_avg_sensor_delay != float('inf') and best_avg_video_speed != 0:
+                all_avg_sensor_delays.append(-best_avg_sensor_delay)
+                all_avg_video_speeds.append(best_avg_video_speed)
+                print(f"Generation {gen} | Best Average Sensor Delay: {-best_avg_sensor_delay:.2f} ms | Best Average Video Speed: {best_avg_video_speed:.2f} Mbps")
+
+
+    # 找到最优解所在的代数以及对应的 avg_sensor_delay 和 avg_video_speed
+    best_generation = (all_avg_sensor_delays.index(min(all_avg_sensor_delays)) + 1) * print_frequency
+    best_sensor_delay = min(all_avg_sensor_delays)
+    best_video_speed = all_avg_video_speeds[all_avg_sensor_delays.index(min(all_avg_sensor_delays))]
+
+    best_individual_x1, best_individual_x2 = best_individual
+
+    # 绘制结果图像
+    fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+    ax1.plot(range(print_frequency, len(all_avg_sensor_delays) * print_frequency + 1, print_frequency), all_avg_sensor_delays, label="Best Average Sensor Delay")
+    ax1.scatter(best_generation, best_sensor_delay, color="red", marker="o", label="Best Solution")
+    ax1.annotate(f"x1={best_individual_x1:.2f}, x2={best_individual_x2:.2f},\nBest Avg. Sensor Delay={best_avg_sensor_delay:.2f}",
+                xy=(best_generation, best_sensor_delay),
+                xytext=(best_generation - 0.4 * best_generation, best_sensor_delay + 0.1 * best_sensor_delay),
+                arrowprops=dict(facecolor="black", shrink=0.05),
+                fontsize=9)
+    ax1.set_ylabel("Sensor Delay (ms)")
+    ax1.legend()
+
+    ax2.plot(range(print_frequency, len(all_avg_video_speeds) * print_frequency + 1, print_frequency), all_avg_video_speeds, label="Best Average Video Speed", color="orange")
+    ax2.scatter(best_generation, best_video_speed, color="red", marker="o", label="Best Solution")
+    ax2.annotate(f"x1={best_individual_x1:.2f}, x2={best_individual_x2:.2f},\nBest Avg. Video Speed={best_avg_video_speed:.2f}",
+                xy=(best_generation, best_video_speed),
+                xytext=(best_generation - 0.4 * best_generation, best_video_speed - 0.1 * best_video_speed),
+                textcoords="data",
+                arrowprops=dict(facecolor="black", shrink=0.05),
+                fontsize=9)
+    ax2.set_xlabel("Generation")
+    ax2.set_ylabel("Video Speed (Mbps)")
+    ax2.legend()
+    
+    plt.show()
+
+    # plot_metrics(sensor_bandwidth, video_bandwidth, sensor_delay, video_delay, sensor_speed, video_speed, sensor_allocation, video_allocation)
 
 if __name__ == "__main__":
-    main()
+    '''
+    population_size : 种群大小
+    crossover_probability : 交叉概率
+    mutation_probability : 变异概率
+    number_of_generations : 迭代次数
+    '''
+    # 遗传算法的参数
+    population_size = 100
+    crossover_probability = 0.7
+    mutation_probability = 0.2
+    number_of_generations = 5000
 
+    
+
+    main(population_size, crossover_probability, mutation_probability, number_of_generations)
+    
 
 '''
 目的：可优化的变量是 x1 和 x2,目标是最小化传感器延迟和最大化视频速率。
